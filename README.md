@@ -10,7 +10,7 @@
     GROUP BY eventname
     ORDER BY event_count DESC
     ```
-
+  - ![alt text](https://user-images.githubusercontent.com/38987117/78983251-d8217600-7af1-11ea-9a99-0e7fc6688167.png)
 - What percentage of events are errors?
   - ```sql
     SELECT count(*)*100.0/(SELECT count(*) FROM flaws2.cloudtrail) AS event_error_percentage
