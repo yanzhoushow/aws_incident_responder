@@ -17,6 +17,7 @@
     FROM flaws2.cloudtrail
     WHERE errorcode IS NOT NULL;
     ```
+    ![alt text](https://user-images.githubusercontent.com/38987117/78983728-c2608080-7af2-11ea-9d1b-5f3a745c0b20.png)
 
 - For each distinct User Identity Account ID, what is the mean time between events?
   - ```sql
