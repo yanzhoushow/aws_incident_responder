@@ -32,3 +32,4 @@
           DATE_DIFF('second', from_iso8601_timestamp(min_event_timestamp), from_iso8601_timestamp(max_event_timestamp))*1.0/(event_count-1) AS mean_interval_in_second
     FROM events
     ```
+    ![alt text](https://user-images.githubusercontent.com/38987117/78983889-15d2ce80-7af3-11ea-8248-ac69d8259afc.png)
