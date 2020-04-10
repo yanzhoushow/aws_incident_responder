@@ -1,11 +1,10 @@
-with events as (
-  select useridentity.accountid as account_id, 
-         min(eventtime) over (partition by useridentity.accountid) as min_event_timestamp, 
-         max(eventtime) over (partition by useridentity.accountid) as max_event_timestamp, 
-         count(*) over (partition by useridentity.accountid) as event_count
-  from cloudtrail
-  where useridentity.accountid is not null
-)
-select distinct account_id, 
-date_diff('second', from_iso8601_timestamp(min_event_timestamp), from_iso8601_timestamp(max_event_timestamp))*1.0/(event_count-1) as mean_interval_in_second 
-from events
+WITH events AS 
+    (SELECT useridentity.accountid AS account_id,
+            min(eventtime) OVER (partition by useridentity.accountid) AS min_event_timestamp, 
+            max(eventtime) OVER (partition by useridentity.accountid) AS max_event_timestamp, 
+            count(*) OVER (partition by useridentity.accountid) AS event_count
+    FROM cloudtrail
+    WHERE useridentity.accountid is NOT NULL)
+SELECT DISTINCT account_id,
+       date_diff('second', from_iso8601_timestamp(min_event_timestamp), from_iso8601_timestamp(max_event_timestamp))*1.0/(event_count-1) AS mean_interval_in_second
+FROM events
