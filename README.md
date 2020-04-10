@@ -1,3 +1,6 @@
+### Resources
+- [Flaws2 Defender Track](http://flaws2.cloud/defender.htm)
+
 ### Athena queries
 - How many events are there for each kind of event?
   - ```sql
