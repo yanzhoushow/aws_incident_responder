@@ -6,5 +6,6 @@ with events as (
   from cloudtrail
   where useridentity.accountid is not null
 )
-select distinct account_id, date_diff('second', from_iso8601_timestamp(min_event_timestamp), from_iso8601_timestamp(max_event_timestamp))*1.0/(event_count-1) as mean_interval_in_second 
+select distinct account_id, 
+date_diff('second', from_iso8601_timestamp(min_event_timestamp), from_iso8601_timestamp(max_event_timestamp))*1.0/(event_count-1) as mean_interval_in_second 
 from events
