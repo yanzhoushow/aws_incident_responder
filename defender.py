@@ -1,5 +1,9 @@
 import boto3
+import collections
+import ipaddress
 import os
+import json
+import requests
 import pandas as pd
 
 
@@ -14,17 +18,19 @@ class Defender:
         self.target_session = boto3.session.Session(profile_name=target_profile)
         self.log_s3_bucket = log_s3_bucket
         self.target_roles_df = self.retrieve_target_roles()
+        self.verified_aws_ip = set()
+        self.verified_non_aws_ip = set()
 
     def download_logs(self):
         s3 = self.security_session.resource('s3')
-        log_bucket = s3.Bucket(LOG_BUCKET_NAME)
+        log_bucket = s3.Bucket(self.log_s3_bucket)
 
         if not os.path.exists(self.log_s3_bucket):
             os.mkdir(self.log_s3_bucket)
 
         for obj in log_bucket.objects.all():
             path, filename = os.path.split(obj.key)
-            log_bucket.download_file(obj.key, f'./{LOG_BUCKET_NAME}/{filename}')
+            log_bucket.download_file(obj.key, f'./{self.log_s3_bucket}/{filename}')
 
         gunzip_cmd = 'find . -type f -exec gunzip -q {} \;'
         os.system(gunzip_cmd)
@@ -50,10 +56,7 @@ class Defender:
         return pd.read_csv(events, names=column_names, sep='\t')
 
 
-    def detect_attack(self):
-        print(self.target_roles_df.columns)
-        print(self.target_roles_df['Arn'])
-
+    def detect_attacks(self):
         events_df = self.read_events_to_dataframe()
         events_df = events_df.merge(self.target_roles_df, on='Arn')
 
@@ -68,7 +71,7 @@ class Defender:
 
             # print(source_ip, request_service)
 
-            if self.is_aws_service(role_policy) and self.invalid_aws_ip(source_ip):
+            if self.is_aws_service(role_policy) and (not self.is_aws_ip(source_ip)):
                 event_time = row['EventTime']
 
                 print(f'=============== Attack Identified ================\n'
@@ -92,42 +95,39 @@ class Defender:
         else:
             return False
 
+    def is_aws_ip(self, ip_addr):
+        if ip_addr in self.verified_aws_ip:
+            return True
 
-# download log files
-defender = Defender(SECURITY_PROFILE, TARGET_PROFILE, LOG_BUCKET_NAME)
+        if ip_addr in self.verified_non_aws_ip:
+            return False
 
-defender.download_logs()
+        aws_url = 'https://ip-ranges.amazonaws.com/ip-ranges.json'
+        data = requests.get(aws_url).json()
 
-# target_roles_df = defender.read_role_from_csv()
+        aws_ips = collections.defaultdict(list)
 
+        # print(len(data['prefixes']))
 
-defender.detect_attack()
+        aws_ip_cidrs = []
 
-# events_df = defender.read_events_to_dataframe()
-# print(events_df.columns)
-#
-# events_df = events_df.merge(target_roles_df, on='Arn')
-# print(events_df.columns)
-# print(events_df[['EventVersion', 'SourceIpAddr', 'Arn', 'AssumeRolePolicyDocument']])
+        for ip in data.get('prefixes'):
+            region = ip.get('region')
+            ip_cidr = ip.get('ip_prefix')
+            aws_ips[region].append(ip_cidr)
+            aws_ip_cidrs.append(ip_cidr)
 
+        for aws_ip_cidr in aws_ip_cidrs:
+            if ipaddress.ip_address(ip_addr) in ipaddress.ip_network(aws_ip_cidr):
+                self.verified_aws_ip.add(ip_addr)
+                return True
 
-# def read_to_dataframe(self):
-#     file_list = glob.glob('*.json')
-#
-#     df = pd.DataFrame()
-#
-#     for file in file_list:
-#         data = pd.read_json(file, lines=True)
-#         print(data['Records'])
-#         df = df.append(data['Records'], ignore_index=True)
-#
-#     return df
-#
-# def read_role_from_csv(self):
-#     return pd.read_csv('target_roles.csv')
+        self.verified_non_aws_ip.add(ip_addr)
+        return False
 
 
-
-
-
-
+if __name__ == "__main__":
+    defender = Defender(SECURITY_PROFILE, TARGET_PROFILE, LOG_BUCKET_NAME)
+    defender.download_logs()
+    defender.detect_attacks()
+    # defender.is_aws_ip()
