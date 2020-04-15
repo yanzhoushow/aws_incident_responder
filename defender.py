@@ -17,6 +17,8 @@ class Defender:
         self.security_session = boto3.session.Session(profile_name=security_profile)
         self.target_session = boto3.session.Session(profile_name=target_profile)
         self.log_s3_bucket = log_s3_bucket
+
+        self.aws_ip_ranges = self.get_valid_aws_ip_ranges()
         self.target_roles_df = self.retrieve_target_roles()
         self.verified_aws_ip = set()
         self.verified_non_aws_ip = set()
@@ -55,7 +57,6 @@ class Defender:
         events = 'events.csv'
         return pd.read_csv(events, names=column_names, sep='\t')
 
-
     def detect_attacks(self):
         events_df = self.read_events_to_dataframe()
         events_df = events_df.merge(self.target_roles_df, on='Arn')
@@ -69,12 +70,10 @@ class Defender:
             source_ip = row['SourceIpAddr']
             arn = row['Arn']
 
-            # print(source_ip, request_service)
-
             if self.is_aws_service(role_policy) and (not self.is_aws_ip(source_ip)):
                 event_time = row['EventTime']
 
-                print(f'=============== Attack Identified ================\n'
+                print(f'=============== Attack Detected !!! ================\n'
                       f'EventTime:\t {event_time}\n'
                       f'SourceIP:\t {source_ip}\n'
                       f'Service:\t {request_service}\n'
@@ -89,21 +88,12 @@ class Defender:
         else:
             return False
 
-    def is_aws_ip(self, ip_addr):
-        if ip_addr in self.verified_aws_ip:
-            return True
-
-        if ip_addr in self.verified_non_aws_ip:
-            return False
-
+    def get_valid_aws_ip_ranges(self):
         aws_url = 'https://ip-ranges.amazonaws.com/ip-ranges.json'
         data = requests.get(aws_url).json()
 
-        aws_ips = collections.defaultdict(list)
-
-        # print(len(data['prefixes']))
-
         aws_ip_cidrs = []
+        aws_ips = collections.defaultdict(list)
 
         for ip in data.get('prefixes'):
             region = ip.get('region')
@@ -111,7 +101,16 @@ class Defender:
             aws_ips[region].append(ip_cidr)
             aws_ip_cidrs.append(ip_cidr)
 
-        for aws_ip_cidr in aws_ip_cidrs:
+        return aws_ip_cidrs
+
+    def is_aws_ip(self, ip_addr):
+        if ip_addr in self.verified_aws_ip:
+            return True
+
+        if ip_addr in self.verified_non_aws_ip:
+            return False
+
+        for aws_ip_cidr in self.aws_ip_ranges:
             if ipaddress.ip_address(ip_addr) in ipaddress.ip_network(aws_ip_cidr):
                 self.verified_aws_ip.add(ip_addr)
                 return True
@@ -124,4 +123,3 @@ if __name__ == "__main__":
     defender = Defender(SECURITY_PROFILE, TARGET_PROFILE, LOG_BUCKET_NAME)
     defender.download_logs()
     defender.detect_attacks()
-    # defender.is_aws_ip()
