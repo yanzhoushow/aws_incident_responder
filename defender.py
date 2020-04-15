@@ -89,12 +89,6 @@ class Defender:
         else:
             return False
 
-    def invalid_aws_ip(self, ip_addr):
-        if ip_addr == '104.102.221.250':
-            return True
-        else:
-            return False
-
     def is_aws_ip(self, ip_addr):
         if ip_addr in self.verified_aws_ip:
             return True
